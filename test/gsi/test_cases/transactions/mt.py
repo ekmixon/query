@@ -83,8 +83,7 @@ cfg = {
 txtimeout = "1m"
 
 def n1ql_connection(url):
-    conn = urllib3.connection_from_url(url)
-    return conn
+    return urllib3.connection_from_url(url)
 
 def n1ql_generate_request(stmt, posparam, txid, txtimeout, tximplicit=False):
 #    stmt['max_parallelism'] = 1
@@ -103,9 +102,8 @@ def n1ql_execute(conn, stmt, posparam, txid, txtimeout, tximplicit):
     query = n1ql_generate_request(stmt, posparam, txid, txtimeout, tximplicit)
     response = conn.request('POST', '/query/service', fields=query, encode_multipart=False)
     response.read(cache_content=False)
-    body = json.loads(response.data.decode('utf8'))
 #    print json.JSONEncoder().encode(body)
-    return body
+    return json.loads(response.data.decode('utf8'))
 
 def prepare_query(conn, stmtObj):
     stmt = {'statement': 'PREPARE ' + stmtObj["name"] + " FROM " + stmtObj["stmt"] }
@@ -118,9 +116,7 @@ def generate_prepared_query (name):
     return {'prepared': '"' + name + '"'}
 
 def get_txid(records):
-    if len(records) == 1:
-         return records[0]["txid"]
-    return ""
+    return records[0]["txid"] if len(records) == 1 else ""
 
 
 def transaction_statements(coll_stmts):
@@ -130,12 +126,12 @@ def transaction_statements(coll_stmts):
         ts_stmts.append(coll_stmts[0])
 
     added = {}
-    for nr in xrange(0,cfg["nstatements"]):
-         rv = random.randint(10,len(coll_stmts)-1)
-         stmt = coll_stmts[rv]
-         if stmt["name"] not in added :
-              ts_stmts.append(coll_stmts[rv])
-              added[stmt["name"]] = True
+    for _ in xrange(0,cfg["nstatements"]):
+        rv = random.randint(10,len(coll_stmts)-1)
+        stmt = coll_stmts[rv]
+        if stmt["name"] not in added:
+            ts_stmts.append(stmt)
+            added[stmt["name"]] = True
 
     if cfg["trans"]:
          rv = random.randint(1,10)
@@ -253,27 +249,21 @@ def run_tid(tid, sid, count, coll_stmts, debug):
     run_queries(tid, sid, n1qlconn, count, coll_stmts, debug) 
 
 def n1ql_load(conn, stmt, collections, start, ndocs, fields):
-    for nr in range(0, ndocs):
-        record = {}
-        record["uid"] = start + nr
-        record["nuid"] = start + nr
+    for nr in range(ndocs):
+        record = {"uid": start + nr, "nuid": start + nr}
         for nc in xrange(0,len(fields)):
             colname = fields[nc]
             record[colname] = (nc * 100) + random.randint(1,100)
         record["comment"] = "comments".ljust(873, '-')
 
-        args = []
-        args.append("")
-        args.append("")
-        args.append("")
-
+        args = ["", "", ""]
         for collection in collections:
-             args[0] = collection
-             args[1] = collection + "::k" + str(record["uid"]).zfill(9)
-             record["ikey"] = collection + "::ik" + str(record["uid"]).zfill(9)
-             record["ukey"] = collection + "::uk" + str(record["uid"]).zfill(9)
-             args[2] = record
-             n1ql_execute(conn, stmt, args, "", txtimeout, False)
+            args[0] = collection
+            args[1] = f"{collection}::k" + str(record["uid"]).zfill(9)
+            record["ikey"] = f"{collection}::ik" + str(record["uid"]).zfill(9)
+            record["ukey"] = f"{collection}::uk" + str(record["uid"]).zfill(9)
+            args[2] = record
+            n1ql_execute(conn, stmt, args, "", txtimeout, False)
 
 def run_load_tid(tid, stmt, collections, ndocs, fields):
     conn = n1ql_connection(cfg["n1ql_connstr"])
@@ -318,39 +308,38 @@ def collection_statements(conn, collections):
     stmts = cfg["stmts"]
     pstmts = []
     for i in xrange(0, 9):
-          s = stmts[i]
-          seqno = seqno + 1
-          name = "p" + str(seqno).zfill(3)
-          if s == "" :
-               stmt = {"stmt": s, "name": "", }
-          else:
-               stmt = {"stmt": s, "name": name, }
-               prepare_query(conn, stmt)
-          pstmts.append(stmt)
+        s = stmts[i]
+        seqno = seqno + 1
+        name = f"p{str(seqno).zfill(3)}"
+        if s == "" :
+             stmt = {"stmt": s, "name": "", }
+        else:
+             stmt = {"stmt": s, "name": name, }
+             prepare_query(conn, stmt)
+        pstmts.append(stmt)
 
     for collection in collections:
-          startcol = seqno + 1
-          for i in xrange(10, len(stmts)):
-              s = stmts[i]
-              seqno = seqno + 1
-              name = "p" + str(seqno).zfill(3)
-              if i < 14 :
-                  stmt = {"stmt": s % (collection) }
-                  if i == 12 :
-                      stmt["implicit"] = True
-                  if i == 13 :
-                      stmt["dundo"] = "p005"
-                      stmt["ddocs"] = "p" + str(startcol).zfill(3)
-              else:
-                  stmt = {"stmt": s % (collection, collection) }
-                  if i >= 15 :
-                      stmt["iuundo"] = "p007"
-              stmt["validate"] = "p" + str(startcol+1).zfill(3)
-              stmt["name"] = name
-              stmt["collection"] = collection
-              prepare_query(conn, stmt)
-              pstmts.append(stmt)
-
+        startcol = seqno + 1
+        for i in xrange(10, len(stmts)):
+            s = stmts[i]
+            seqno = seqno + 1
+            name = f"p{str(seqno).zfill(3)}"
+            if i < 14:
+                stmt = {"stmt": s % (collection) }
+                if i == 12:
+                    stmt["implicit"] = True
+                elif i == 13:
+                    stmt["dundo"] = "p005"
+                    stmt["ddocs"] = f"p{str(startcol).zfill(3)}"
+            else:
+                stmt = {"stmt": s % (collection, collection) }
+                if i >= 15 :
+                    stmt["iuundo"] = "p007"
+            stmt["validate"] = f"p{str(startcol+1).zfill(3)}"
+            stmt["name"] = name
+            stmt["collection"] = collection
+            prepare_query(conn, stmt)
+            pstmts.append(stmt)
 #    for p in pstmts:
 #        print p, "\n"
     return pstmts
@@ -362,22 +351,21 @@ def run_init(nthreads):
     collections = []
 
     for k in cfg["keyspaces"]:
-          bname = k["bname"]
-          buckets.append(bname)
-          collection = bname
-          if "cname" in k:
-              if "sname" in k :
-                   collection += "." + k["sname"]
-                   scopes.append(collection)
-              else:
-                   collection += "._default"
-              collection += "." + k["cname"]
-          else:
-              if "sname" in k:
-                   collection += "." + k["sname"]
-                   scopes.append(collection)
-                   collection += "._default"
-          collections.append(collection)
+        bname = k["bname"]
+        buckets.append(bname)
+        collection = bname
+        if "cname" in k:
+            if "sname" in k :
+                 collection += "." + k["sname"]
+                 scopes.append(collection)
+            else:
+                 collection += "._default"
+            collection += "." + k["cname"]
+        elif "sname" in k:
+            collection += "." + k["sname"]
+            scopes.append(collection)
+            collection += "._default"
+        collections.append(collection)
 
     if cfg["loaddata"]:
           create_collections(conn, buckets, scopes, collections)

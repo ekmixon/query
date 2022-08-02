@@ -171,160 +171,160 @@ if cfg["validate"]:
      import psycopg2.extras
 
 def generate_docs(n, fields, ufields):
-    records = []
-    for nr in range(0,n):
-        record = {}
-        for nc in range(0,len(fields)):
-            colname = fields[nc]
-            record[colname] = (nc * 100) + random.randint(1,n/4)
-        for nc in range(0,len(ufields)):
-            colname = ufields[nc]
-            record[colname] = nr+1
-        records.append(record)
-    return records
+     records = []
+     for nr in range(n):
+          record = {}
+          for nc in range(len(fields)):
+               colname = fields[nc]
+               record[colname] = (nc * 100) + random.randint(1,n/4)
+          for nc in range(len(ufields)):
+               colname = ufields[nc]
+               record[colname] = nr+1
+          records.append(record)
+     return records
 
 def order_by(p, o, fields, ufields):
-    collation = cfg["collation"]
-    nullspos = cfg["nullspos"]
-    n = random.randint(1,o)
-    if n == 0:
-        return ""
-    s = " ORDER BY "
-    for i in range (0, n):
-        if i != 0 :
-            s += ", "
-        s += fields[p+i]
- 
-        s += collation[random.randint(0,len(collation)-1)]
-        s += nullspos[random.randint(0,len(nullspos)-1)]
+     collation = cfg["collation"]
+     nullspos = cfg["nullspos"]
+     n = random.randint(1,o)
+     if n == 0:
+         return ""
+     s = " ORDER BY "
+     for i in range(n):
+          if i != 0 :
+              s += ", "
+          s += fields[p+i]
 
-    for f in ufields:
-        s += ", " + f
-    return s
+          s += collation[random.randint(0,len(collation)-1)]
+          s += nullspos[random.randint(0,len(nullspos)-1)]
+
+     for f in ufields:
+          s += f", {f}"
+     return s
 
 def partition_by(p, fields):
-    n = random.randint(0,p)
-    if n == 0:
-        return ""
-    s = "PARTITION BY "
-    for i in range (0, n):
-        if i != 0 :
-            s += ", "
-        s += fields[i]
-    return s
+     n = random.randint(0,p)
+     if n == 0:
+         return ""
+     s = "PARTITION BY "
+     for i in range(n):
+          if i != 0 :
+              s += ", "
+          s += fields[i]
+     return s
 
 def window_frame_exclude(qvalidate):
-    if cfg.get("wframe_exclude") != False and random.randint(0, 5) != 0 :
-         wfexclude = cfg["cfg_wframe_exclude"]
-         wfe = wfexclude[random.randint(0, len(wfexclude)-1)]
-         wvalidate = wfe.get("validate")
-         if qvalidate != True or wvalidate == None or wvalidate == True or cfg["pgsqlver"] >= wvalidate:
-              return " " + wfe["name"] + " "
+     if cfg.get("wframe_exclude") != False and random.randint(0, 5) != 0:
+          wfexclude = cfg["cfg_wframe_exclude"]
+          wfe = wfexclude[random.randint(0, len(wfexclude)-1)]
+          wvalidate = wfe.get("validate")
+          if (qvalidate != True or wvalidate is None or wvalidate == True
+              or cfg["pgsqlver"] >= wvalidate):
+               return " " + wfe["name"] + " "
 
-    return ""
+     return ""
 
 def window_frame(agg, qvalidate):
-    if cfg.get("wframe") == False or agg.get("wframe") == False or random.randint(0, 10) == 0 :
-        return "", None
+     if cfg.get("wframe") == False or agg.get("wframe") == False or random.randint(0, 10) == 0 :
+         return "", None
 
-    wframe = cfg["cfg_wframe"]
-    for i in range(0,len(wframe)):
-         wf = wframe[random.randint(0, len(wframe)-1)]
-         wvalidate = wf.get("validate")
-         if qvalidate == True and (wvalidate == False or (isinstance(wvalidate, int) and cfg["pgsqlver"] < wvalidate)):
-               continue
-         wfname = wf["name"]
-         if wf.get("nvals") != None :
-             nvals = wf["nvals"]
-             if nvals == 1:
-                 v1 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
-                 wfname = wfname %(v1)
-             elif nvals == 2:
-                 v1 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
-                 v2 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
-                 wfname = wfname %(v1, v2)
-         return " " + wfname + " " + window_frame_exclude(qvalidate), wf.get("noby")
+     wframe = cfg["cfg_wframe"]
+     for _ in range(len(wframe)):
+          wf = wframe[random.randint(0, len(wframe)-1)]
+          wvalidate = wf.get("validate")
+          if qvalidate == True and (wvalidate == False or (isinstance(wvalidate, int) and cfg["pgsqlver"] < wvalidate)):
+                continue
+          wfname = wf["name"]
+          if wf.get("nvals") != None :
+              nvals = wf["nvals"]
+              if nvals == 1:
+                  v1 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
+                  wfname = wfname %(v1)
+              elif nvals == 2:
+                  v1 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
+                  v2 = random.randint(cfg["wframe_range"][0],cfg["wframe_range"][1])
+                  wfname = wfname %(v1, v2)
+          return f" {wfname} {window_frame_exclude(qvalidate)}", wf.get("noby")
 
-    return "", None
+     return "", None
     
 
 def over_clause(agg, fields, qvalidate):
-    s = "OVER("
-    so = 0
-    if agg.get("optoby") == False:
-        so = 1
-    p = random.randint(0,len(fields)-so)
-    o = random.randint(so,len(fields)-p)
-    if agg.get("nooby") == True:
-        o = 0
-    s += partition_by(p, fields)
-    if o > 0:
-       wframe, o1 = window_frame(agg, qvalidate)
-       if o1 == 1:
-            o = 1
-       ufields = []
-       if wframe.startswith(" ROWS"):
-           ufields = cfg["ufields"]
-       elif agg.get("uoby") == True and wframe == "":
-           ufields = cfg["ufields"]
-       elif qvalidate == True and agg.get("uoby") == True and wframe != "":
-           fields = cfg["ufields"]
-           p=0
-           o=1
-       s += order_by(p, o, fields, ufields)
-       s += wframe
-    elif agg.get("uoby") == True:
-       s += order_by(0, 1, cfg["ufields"], [])
-    s += ") "
-    return s
+     s = "OVER("
+     so = 1 if agg.get("optoby") == False else 0
+     p = random.randint(0,len(fields)-so)
+     o = random.randint(so,len(fields)-p)
+     if agg.get("nooby") == True:
+         o = 0
+     s += partition_by(p, fields)
+     if o > 0:
+        wframe, o1 = window_frame(agg, qvalidate)
+        if o1 == 1:
+             o = 1
+        ufields = []
+        if wframe.startswith(" ROWS"):
+            ufields = cfg["ufields"]
+        elif agg.get("uoby") == True and wframe == "":
+            ufields = cfg["ufields"]
+        elif qvalidate == True and agg.get("uoby") == True and wframe != "":
+            fields = cfg["ufields"]
+            p=0
+            o=1
+        s += order_by(p, o, fields, ufields)
+        s += wframe
+     elif agg.get("uoby") == True:
+        s += order_by(0, 1, cfg["ufields"], [])
+     s += ") "
+     return s
      
 def get_agg(olap, qvalidate):
-    aggs = cfg["aggs"]
-    for i in range(0,len(aggs)):
-         agg = aggs[random.randint(0, len(aggs)-1)]
-         if not olap and agg.get("olaponly") == True:
-             continue
-         if qvalidate == False:
-             return agg
-         elif qvalidate == True and agg.get("validate") != False:
-             return agg
-         elif qvalidate == None and (agg.get("validate") == False or agg.get("distinct") != False):
-             return agg
-    return aggs[0]
+     aggs = cfg["aggs"]
+     for _ in range(len(aggs)):
+          agg = aggs[random.randint(0, len(aggs)-1)]
+          if not olap and agg.get("olaponly") == True:
+              continue
+          if qvalidate == False:
+               return agg
+          elif qvalidate == True and agg.get("validate") != False:
+              return agg
+          elif qvalidate is None and ((agg.get("validate") == False
+                                       or agg.get("distinct") != False)):
+               return agg
+     return aggs[0]
 
 def aggregate(n,fields, olap, distinct, qvalidate):
-    agg = get_agg(olap, qvalidate)
-    agg_modifier = ""
-    minargs = agg.get("minargs")
-    maxargs = agg.get("maxargs")
-    if minargs == None:
-        minargs = 1
-    if maxargs == None:
-        maxargs = 1
-    
-    if distinct and minargs == 1 and maxargs == 1 and agg.get("distinct") != False and (random.randint(0,1) == 1 or qvalidate == None):
-        agg_modifier = "DISTINCT "
-    
-    s = agg["name"]
-    s += " ("
-    s += agg_modifier
-    nargs = random.randint(minargs, maxargs)
-    for i in range (0, nargs):
+     agg = get_agg(olap, qvalidate)
+     agg_modifier = ""
+     minargs = agg.get("minargs")
+     maxargs = agg.get("maxargs")
+     if minargs is None:
+          minargs = 1
+     if maxargs is None:
+          maxargs = 1
+
+     if (distinct and minargs == 1 and maxargs == 1
+         and agg.get("distinct") != False
+         and (random.randint(0, 1) == 1 or qvalidate is None)):
+          agg_modifier = "DISTINCT "
+
+     s = agg["name"]
+     s += " ("
+     s += agg_modifier
+     nargs = random.randint(minargs, maxargs)
+     for i in range(nargs):
           if i == 0:
-               if agg["name"] == "NTILE":
-                   s += str(random.randint(1, 9))
-               else:
-                   s += fields[random.randint(0, len(fields)-1)]
+               s += (str(random.randint(1, 9)) if agg["name"] == "NTILE" else
+                     fields[random.randint(0,
+                                           len(fields) - 1)])
           elif i == 1:
                s += "," + str (random.randint(1, cfg["nth"]))
-          else:
-               if agg["name"] != "NTH_VALUE" or not qvalidate:
-                    s += "," +  str (cfg["defarg"])
+          elif agg["name"] != "NTH_VALUE" or not qvalidate:
+               s += "," +  str (cfg["defarg"])
 
-    s += ") "
+     s += ") "
 
-    alias = "AS " + "oagg_" + str(n)
-    return agg, s, alias
+     alias = "AS " + "oagg_" + str(n)
+     return agg, s, alias
 
 def regular_aggregate(n, fields):
     agg, s, alias = aggregate(n, fields, False, True, qvalidate)
@@ -349,84 +349,76 @@ def analytic_aggregate(n, fields, qvalidate):
     return s + over_clause(agg, fields, qvalidate) + alias
 
 def projection(fields, qvalidate):
-    n = random.randint(0, cfg["query_naggs"])+1
-    s = ""
-    for i in range (0, len(fields)):
-        if i != 0 :
-            s += ", "
-        s += fields[i]
+     n = random.randint(0, cfg["query_naggs"])+1
+     s = ""
+     for i in range(len(fields)):
+          if i != 0 :
+              s += ", "
+          s += fields[i]
 
-    for i in range (0, n):
-        s += ", "
-        s += analytic_aggregate(i, fields, qvalidate)
-    return s
+     for i in range(n):
+          s += ", "
+          s += analytic_aggregate(i, fields, qvalidate)
+     return s
     
 def generate_fields(ofields):
-    n = random.randint(cfg["query_nfields"][0], cfg["query_nfields"][1])
-    if n > len(ofields):
-       n = len(ofields)
-
-    thisdict={}
-    while len(thisdict) < n:
-        j =  random.randint(0,len(ofields)-1)
-        thisdict[ofields[j]] = ofields[j]
-    fields = []
-    for w in thisdict:
-        fields.append(w)
-    return sorted(fields)
+     n = random.randint(cfg["query_nfields"][0], cfg["query_nfields"][1])
+     n = min(n, len(ofields))
+     thisdict={}
+     while len(thisdict) < n:
+         j =  random.randint(0,len(ofields)-1)
+         thisdict[ofields[j]] = ofields[j]
+     fields = list(thisdict)
+     return sorted(fields)
 
 def generate_statement(tabname, ofields, validate):
-    fields = generate_fields(ofields)
-    qvalidate = validate
-    if validate and random.randint(0,100) == 0:
-        qvalidate = None
+     fields = generate_fields(ofields)
+     qvalidate = validate
+     if qvalidate and random.randint(0, 100) == 0:
+          qvalidate = None
 
-    s = cfg["prefix"]
-    s += " SELECT " + projection(fields, qvalidate)
-    s += " FROM " + tabname
-    s += ";"
-    return s, qvalidate == True
+     s = cfg["prefix"]
+     s += f" SELECT {projection(fields, qvalidate)}"
+     s += f" FROM {tabname}"
+     s += ";"
+     return s, qvalidate == True
 
 def compare(s, t, validate):
-    if not validate:
-         if len(s) != cfg["nrecords"]:
-             return False, s
-         else:
-             return True, None
-
-    t = list(t)
-    try:
-        for elem in s:
-            t.remove(elem)
-    except ValueError:
-        return False, elem
-    return not t, t
+     if not validate:
+          return (False, s) if len(s) != cfg["nrecords"] else (True, None)
+     t = list(t)
+     try:
+         for elem in s:
+             t.remove(elem)
+     except ValueError:
+         return False, elem
+     return not t, t
 
 def pgsql_load(conn, tabname, records, validate):
-    if not validate:
-         return
+     if not validate:
+          return
 
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor.execute("DROP TABLE IF EXISTS test")
-    cols = sorted(records[0].keys())
-    coldef = [col + " int" for col in cols]
-    query = "CREATE TABLE " + tabname + " (" + ", ".join(coldef) + ")"
-    try:
-        cursor.execute(query)
-    except:
-        print (query, "execute failed")
+     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+     cursor.execute("DROP TABLE IF EXISTS test")
+     cols = sorted(records[0].keys())
+     coldef = [f"{col} int" for col in cols]
+     query = f"CREATE TABLE {tabname} (" + ", ".join(coldef) + ")"
+     try:
+         cursor.execute(query)
+     except:
+         print (query, "execute failed")
 
-    cols_str = ", ".join(cols)
-    vals_str_list = ["%s"] * len(cols)
-    vals_str = ", ".join(vals_str_list)
-    for record in records:
-        vals = [record[x] for x in cols]
-        query = "INSERT INTO test ({cols}) VALUES ({vals_str})".format(cols = cols_str, vals_str = vals_str)
-        try:
-            cursor.execute(query, vals)
-        except:
-            print (query, "execute failed")
-    conn.commit()
+     cols_str = ", ".join(cols)
+     vals_str_list = ["%s"] * len(cols)
+     vals_str = ", ".join(vals_str_list)
+     for record in records:
+         vals = [record[x] for x in cols]
+         query = "INSERT INTO test ({cols}) VALUES ({vals_str})".format(cols = cols_str, vals_str = vals_str)
+         try:
+             cursor.execute(query, vals)
+         except:
+             print (query, "execute failed")
+     conn.commit()
 
 def pgsql_conn(connstr, validate):
     if not validate:
@@ -439,11 +431,8 @@ def pgsql_conn(connstr, validate):
     return conn
 
 def pgsql_version(conn, validate):
-    rows = pgsql_execute(conn,"SHOW server_version_num", validate)
-    if rows != None:
-        return int(rows[0].get("server_version_num"))
-    else:
-        return 0
+     rows = pgsql_execute(conn,"SHOW server_version_num", validate)
+     return int(rows[0].get("server_version_num")) if rows != None else 0
 
 
 def pgsql_execute(conn, query, validate):
@@ -475,43 +464,45 @@ def pgsql_execute(conn, query, validate):
     return rows
 
 def n1ql_connection(url):
-    conn = urllib3.connection_from_url(url)
-    return conn
+     return urllib3.connection_from_url(url)
 
 def n1ql_generate_request(stmt):
-    stmt = {'statement': stmt}
-    stmt['max_parallelism'] = 1
-    stmt['creds'] = '[{"user":"Administrator","pass":"password"}]'
-    stmt['timeout'] = '120s'
-    if cfg["ARGS"]:
-        stmt['args'] =cfg["ARGS"]
-    return stmt
+     stmt = {
+         'statement': stmt,
+         'max_parallelism': 1,
+         'creds': '[{"user":"Administrator","pass":"password"}]',
+         'timeout': '120s',
+     }
+     if cfg["ARGS"]:
+         stmt['args'] =cfg["ARGS"]
+     return stmt
 
 def n1ql_load(conn, tabname, records):
-    i = 0
-    n1ql_execute(conn, 'DELETE FROM '+ tabname+ ';')
-    for record in records:
-        i = i+1
-        key = "k" + str(i).zfill(9)
-        query = 'INSERT INTO ' + tabname + ' VALUES("' + key + '",' + json.JSONEncoder().encode(record) + ');'
-        n1ql_execute(conn, query)
+     i = 0
+     n1ql_execute(conn, f'DELETE FROM {tabname};')
+     for record in records:
+          i = i+1
+          key = f"k{str(i).zfill(9)}"
+          query = (f'INSERT INTO {tabname}' + ' VALUES("' + key + '",' +
+                   json.JSONEncoder().encode(record) + ');')
+          n1ql_execute(conn, query)
 
 def n1ql_round_float(records, validate):
-    if not validate:
-         return records
+     if not validate:
+          return records
 
-    if cfg.get("round") == None:
-       return records
+     if cfg.get("round") is None:
+          return records
 
-    rows = []
-    for record in records:
-        row = {} 
-        for k in record.keys():
-             row[k]=record[k]
-             if isinstance(row[k], float):
-                 row[k]= round(row[k],cfg["round"])
-        rows.append(row)
-    return rows
+     rows = []
+     for record in records:
+         row = {} 
+         for k in record.keys():
+              row[k]=record[k]
+              if isinstance(row[k], float):
+                  row[k]= round(row[k],cfg["round"])
+         rows.append(row)
+     return rows
      
     
 def n1ql_execute(conn, stmt):
@@ -564,31 +555,27 @@ def run_tid(tid, count, tabname, fields, validate, debug):
     run_queries(tid, n1qlconn, pgsqlconn, count, tabname, fields, validate, debug)
 
 if __name__ == "__main__":
-    tids = 1
-    count = cfg["nqueries"]
-    validate = cfg["validate"]
+     count = cfg["nqueries"]
+     validate = cfg["validate"]
 
-    if len(sys.argv) > 3 and sys.argv[3].lower() == 'false':
-           validate = False
-    if len(sys.argv) > 2:
-         count = int(sys.argv[2])
-    if len(sys.argv) > 1:
-         tids = int(sys.argv[1])
+     if len(sys.argv) > 3 and sys.argv[3].lower() == 'false':
+            validate = False
+     if len(sys.argv) > 2:
+          count = int(sys.argv[2])
+     tids = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+     run_init(validate)
 
-    run_init(validate)
+     tids = 1
+     tids = 1
+     tcount = int(math.ceil(count/float(tids)))
+     jobs = []
+     for i in range(tids):
+         j = multiprocessing.Process(target=run_tid, args=(i, tcount, cfg["tabname"], cfg["docfields"], cfg["debug"], validate))
+         jobs.append(j)
+         j.start()
 
-    print "\nUsage: python {0} <num of threads> <num of queries> <validate> ".format(sys.argv[0])
-    print "\nThreads: {0}".format(tids), ", QUERIES: {0}".format(count), ", Postgress Ver: {0}".format(cfg["pgsqlver"]), ", RESULT VALIDATION: {0}\n".format(cfg["validate"]) 
+     for j in jobs:
+         j.join()
 
-    tcount = int(math.ceil(count/float(tids)))
-    jobs = []
-    for i in range(tids):
-        j = multiprocessing.Process(target=run_tid, args=(i, tcount, cfg["tabname"], cfg["docfields"], cfg["debug"], validate))
-        jobs.append(j)
-        j.start()
-
-    for j in jobs:
-        j.join()
-
-    print "Ran # ", tids*tcount, " Queries"
+     tids = 1
 
